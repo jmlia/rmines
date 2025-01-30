@@ -1,4 +1,4 @@
-# :bomb: rmines v0.1.0
+# rmines v0.1.0
 
 `rmines` is an implementation in pure Rust of the classic game _Minesweeper_. As
 a learner of Rust, I thought that programming the logic of this game would be an
