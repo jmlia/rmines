@@ -1,12 +1,10 @@
-# rmines v0.1.0
+# rmines
 
-`rmines` is an implementation in pure Rust of the classic game _Minesweeper_. As
-a learner of Rust, I thought that programming the logic of this game would be an
-interesting challenge to take on.
+`rmines` is an implementation in pure Rust of the classic game _Minesweeper_.
 
 ## Dependencies
 
-This program requires only the `rand` crate.
+This program only uses the `rand` crate.
 
 ## How to play
 
@@ -25,11 +23,9 @@ values for them will be chosen at random.
 
 ## TODO
 
-- Keep track of and print the total playing time.
 - Ask the user if they would like to start a new game after the current one is over.
 - Give the user the possibility of saving their progress and resume the game
   later.
-- Move the `Board` structure and its `impl` block to a separate crate.
 - Write many more tests!
 - Refactor the `explore` function to make it more efficient.
 - Make the user interface more functional (perhaps through third-patry crates
