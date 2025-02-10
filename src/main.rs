@@ -10,41 +10,30 @@ enum ParseResult<'a> {
     Ok,
     TooManyArguments,
     MissingArgument,
-    NotNatural(&'a str)
+    InvalidArgument(&'a str)
 }
 
 fn parse_arguments<'a>(line: &'a str, args: &mut [usize], mandatory: bool) -> ParseResult<'a> {
 
     let mut args_it = args.iter_mut();
-
+    
     for slice in line.split(',') {
 
-        let arg = args_it.next();
-        
-        if arg.is_none() {
-            return ParseResult::TooManyArguments;
-        }
-        
-        match slice.parse::<usize>() {
-            Ok(n) => *arg.unwrap() = n,
+        let Some(arg) = args_it.next() else {
+            return ParseResult::TooManyArguments };
 
-            // If `mandatory' is false, do not consider missing arguments as errors.
-            Err(error)
-                if matches!(error.kind(), std::num::IntErrorKind::Empty) => {
-                    if mandatory {
-                        return ParseResult::MissingArgument;
-                    }
-                },
-            
-            _ => {
-                return ParseResult::NotNatural(slice);
-            }
+        match slice.parse::<usize>() {
+            Ok(n) => *arg = n,
+            // If `slice' is empty but the argument is mandatory, report the case as an error.
+            Err(error) if *error.kind() == std::num::IntErrorKind::Empty && !mandatory => {
+                return ParseResult::MissingArgument;
+            },
+            Err(_) => return ParseResult::InvalidArgument(slice),
         }
     }
 
     ParseResult::Ok
-
-}    
+} 
 
 fn main() {
 
@@ -76,9 +65,9 @@ fn main() {
                                    ((seconds_elapsed % 3600) % 60));
         }
 
-        // Print the board and other information related to the game.
+        // Print the board and other information related to the current game.
         print!("{}\n\
-                Located: {flagged} of {mine_count} mines\n\
+                Located {flagged} of {mine_count} mines\n\
                 Total playing time: {playing_time}\n\n\
                 {prefix} ",
                board, flagged = board.get_flagged_count(),
@@ -90,6 +79,7 @@ fn main() {
 
             Ok(_) => {
 
+                // Eat up all whitespace before processing the input line.
                 line.retain(|c| !c.is_whitespace());
 
                 if let Some(cmd) = line.chars().next() {
@@ -104,7 +94,7 @@ fn main() {
 
                         'n' => { // Start a new game.
 
-                            // Default arguments.
+                            // Default arguments (make a board no larger than the current one).
                             let mut args: [usize; 3] = [
                                 rng.gen_range(1..=board.get_rows()), // Number of rows
                                 rng.gen_range(1..=board.get_cols()), // Number of columns
@@ -120,7 +110,7 @@ fn main() {
                                               at most three: `[rows]', `[columns]', and `[mine count]'.");
                                     continue;
                                 }
-                                ParseResult::NotNatural(slice) => {
+                                ParseResult::InvalidArgument(slice) => {
                                     println!("{prefix} '{cmd}': expected a positive number,\
                                               but got '{slice}' instead\n");
                                     continue;
@@ -152,18 +142,18 @@ fn main() {
                             
                             // Randomly choose a cell to explore if the user doesn't provide any.
                             let mut args: [usize; 2] = [
-                                rng.gen_range(1..=board.get_rows()), // row
-                                rng.gen_range(1..=board.get_cols()), // col
+                                rng.gen_range(1..=board.get_rows()), // Row
+                                rng.gen_range(1..=board.get_cols()), // Column
                             ];
 
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected \
-                                              at most two: `[row]', `[colum]'.");
+                                              two at most: `[row]', `[colum]'.");
                                     continue;
                                 },
 
-                                ParseResult::NotNatural(slice) => {
+                                ParseResult::InvalidArgument(slice) => {
                                     println!("{prefix} '{cmd}': expected a positive number, \
                                               but got '{slice}' instead");
                                     continue;
@@ -179,14 +169,16 @@ fn main() {
                                 continue 'main;
                             }
                             
-                            // board.explore() explores the board greedily, i.e., it keeps exploring
-                            // empty neighbourhoods until it runs into one that is mined.
+                            // board.explore() explores the board greedily, that is, it keeps
+                            // exploring clear neighbourhoods until it runs into one that is mined.
 
                             loop {
                                 match board.explore() {
                                     ExploreResult::EmptyCache => break,
                                     ExploreResult::Mined => {
-                                        println!("{prefix} You found a mine!\n\n{board}\nGame over!\n");
+                                        println!("{prefix} You found a mine!\n\n\
+                                                  {board}\n\
+                                                  Game over!\n");
                                         // TODO: ask the user if they want to start a new game.
                                         break 'main;
                                     },
@@ -219,7 +211,7 @@ fn main() {
                                     continue;
                                 },
 
-                                ParseResult::NotNatural(slice) => {
+                                ParseResult::InvalidArgument(slice) => {
                                     println!("{prefix} '{cmd}': expected a positive number, \
                                               but got '{slice}' instead");
                                     continue;
