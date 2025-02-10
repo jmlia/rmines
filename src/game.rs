@@ -122,7 +122,7 @@ impl Board {
 
     pub fn add_to_unexplored(&mut self, coord: Coord) -> bool {
 
-        if coord.0 * self.cols + coord.1 < self.area {
+        if coord.0 < self.rows && coord.1 < self.cols {
             self.unexplored.insert(coord);
             return true;
         }
