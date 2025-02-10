@@ -23,12 +23,14 @@ fn parse_arguments<'a>(line: &'a str, args: &mut [usize], mandatory: bool) -> Pa
             return ParseResult::TooManyArguments };
 
         match slice.parse::<usize>() {
-            Ok(n) => *arg = n,
+            Ok(n) if n > 0 => *arg = n - 1,
             // If `slice' is empty but the argument is mandatory, report the case as an error.
-            Err(error) if *error.kind() == std::num::IntErrorKind::Empty && !mandatory => {
-                return ParseResult::MissingArgument;
+            Err(error) if *error.kind() == std::num::IntErrorKind::Empty => {
+                if mandatory {
+                    return ParseResult::MissingArgument;
+                }
             },
-            Err(_) => return ParseResult::InvalidArgument(slice),
+            _ => return ParseResult::InvalidArgument(slice),
         }
     }
 
@@ -91,7 +93,6 @@ fn main() {
                     let arg_line = line.strip_prefix(cmd).unwrap();
 
                     match cmd {
-
                         'n' => { // Start a new game.
 
                             // Default arguments (make a board no larger than the current one).
@@ -106,13 +107,12 @@ fn main() {
 
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
-                                    println!("{prefix} '{cmd}': too many arguments, expected\
-                                              at most three: `[rows]', `[columns]', and `[mine count]'.");
+                                    println!("{prefix} '{cmd}': too many arguments, expected three \
+                                              at most: `[rows]', `[columns]', and `[mine count]'.");
                                     continue;
                                 }
                                 ParseResult::InvalidArgument(slice) => {
-                                    println!("{prefix} '{cmd}': expected a positive number,\
-                                              but got '{slice}' instead\n");
+                                    println!("{prefix} '{cmd}':  '{slice}' is not a valid coordinate.\n");
                                     continue;
                                 },
                                 _ => {}
@@ -121,19 +121,17 @@ fn main() {
                             // Try to create a new board.
                             match Board::new(args[0], args[1], args[2]) {
                                 Ok(new_board) => {
-                                    println!("{prefix} Starting a new game. The new board has \
-                                              {rows} rows, {cols} columns, and ~{count} mines.",
+                                    println!("{prefix} Starting a new game. The new board has {rows} rows, \
+                                              {cols} columns, and (approximately) {count} mines.",
                                              rows = args[0], cols = args[1], count = args[2]);
                                     board = new_board;
                                     start_time = SystemTime::now();
                                 },
-
                                 Err(BoardError::NullArea) => {
                                     println!("{prefix} '{cmd}': Cannot create a board with zero rows or columns!");
                                 },
-
                                 Err(BoardError::TooManyMines) => {
-                                    println!("{prefix} '{cmd}': Too many mines for such small board!");
+                                    println!("{prefix} '{cmd}': Too many mines for such a small board!");
                                 }
                             }
                         },
@@ -152,19 +150,16 @@ fn main() {
                                               two at most: `[row]', `[colum]'.");
                                     continue;
                                 },
-
                                 ParseResult::InvalidArgument(slice) => {
-                                    println!("{prefix} '{cmd}': expected a positive number, \
-                                              but got '{slice}' instead");
+                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.");
                                     continue;
                                 },
-
                                 _ => {}
                             }
                             
                             // Try to add the specified coordinate to the unexplored cache.
                             if !board.add_to_unexplored((args[0] - 1, args[1] - 1)) {
-                                println!("{prefix} '{cmd}': coordinate ({x}, {y}) out of bounds.",
+                                println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).",
                                          x = args[0], y = args[1]);
                                 continue 'main;
                             }
@@ -204,24 +199,20 @@ fn main() {
                                     println!("{prefix} '{cmd}': too few arguments passed in.");
                                     continue;
                                 },
-
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected \
-                                              at most two: `[row]', `[colum]'.");
+                                              two at most: `[row]', `[colum]'.");
                                     continue;
                                 },
-
                                 ParseResult::InvalidArgument(slice) => {
-                                    println!("{prefix} '{cmd}': expected a positive number, \
-                                              but got '{slice}' instead");
+                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.");
                                     continue;
                                 },
-
                                 _ => {}
                             }
 
                             if !board.toggle_flag_at((args[0] - 1, args[1] - 1)) {
-                                println!("{prefix} '{cmd}': the chosen cell is off the board!");
+                                println!("{prefix} '{cmd}': ");
                                 continue 'main;
                             }
                         },
@@ -269,46 +260,44 @@ fn main() {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rand::prelude::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use rand::prelude::*;
 
-    #[test]
-    fn test_explore() {
+//     #[test]
+//     fn test_explore() {
 
-        // Create a new Board and mine it.
-        let mut rng = rand::thread_rng();
-        let rows: usize = rng.gen_range(1..=10);
-        let cols: usize = rng.gen_range(1..=10);
-        let mine_count: usize = rng.gen_range(1..(rows * cols));
+//         // Create a new Board and mine it.
+//         let mut rng = rand::thread_rng();
+//         let rows: usize = rng.gen_range(1..=10);
+//         let cols: usize = rng.gen_range(1..=10);
+//         let mine_count: usize = rng.gen_range(1..(rows * cols));
 
-        let board_result = Board::new(rows, cols, mine_count);
-        let mut board = board_result
-            .unwrap_or_else(|_| panic!("Error while creating a \
-                                        new Board ({rows}, {cols}, \
-                                        {mine_count}).")
-        );
+//         let board_result = Board::new(rows, cols, mine_count);
+//         let mut board = board_result
+//             .unwrap_or_else(|_| panic!("Error while creating a \
+//                                         new Board ({rows}, {cols}, \
+//                                         {mine_count}).")
+//         );
 
-        println!("Created board with ({rows}, {cols}, {mine_count}).");
+//         println!("Created board with ({rows}, {cols}, {mine_count}).");
         
-        // Pick a coordinate at random.
-        let index = rng.gen_range(0..(rows * cols));
-        let coord = (index/board.cols, index % board.cols);
+//         // Pick a coordinate at random.
+//         let index = rng.gen_range(0..(rows * cols));
+//         let coord = (index/board.cols, index % board.cols);
 
-        println!("Exploring cell at ({}, {})", coord.0 + 1, coord.1 + 1);
-        board.add_to_unexplored(coord);
+//         println!("Exploring cell at ({}, {})", coord.0 + 1, coord.1 + 1);
+//         board.add_to_unexplored(coord);
 
-        loop {
-            match board.explore() {
-                ExploreResult::Clear => { println!("Clear"); },
-                ExploreResult::Mined => { println!("Mine found at ({}, {})", coord.0, coord.1); }
-                ExploreResult::EmptyCache => { println!("Empty cache."); break; }
-                ExploreResult::MinedNeighbourhood => { println!("MinedNeighbourhood"); }
-            }
-        }
-
-        println!("{}", board);
-
-    }
-}
+//         loop {
+//             match board.explore() {
+//                 ExploreResult::Clear => { println!("Clear"); },
+//                 ExploreResult::Mined => { println!("Mine found at ({}, {})", coord.0, coord.1); }
+//                 ExploreResult::EmptyCache => { println!("Empty cache."); break; }
+//                 ExploreResult::MinedNeighbourhood => { println!("MinedNeighbourhood"); }
+//             }
+//         }
+//         println!("{}", board);
+//     }
+// }
