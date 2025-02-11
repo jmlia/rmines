@@ -15,7 +15,12 @@ pub enum ExploreResult {
     Ok,
     EmptyCache,
     Mined,
-    MinedNeighbourhood,
+    ClearBoard,
+}
+
+pub enum CacheResult {
+    Ok,
+    InvalidCoordinate,
     Clear,
 }
 
@@ -126,19 +131,24 @@ impl Board {
         })
     }
 
-    pub fn cache(&mut self, coord: Coord) -> bool {
+    pub fn cache(&mut self, coord: Coord) -> CacheResult {
 
-        if coord.0 < self.rows + 1 && coord.1 < self.cols + 1 {
-            self.cached.insert((coord.0 - 1, coord.1 - 1));
-            return true;
+        if !(coord.0 < self.rows + 1 && coord.1 < self.cols + 1) {
+            return CacheResult::InvalidCoordinate;
         }
-        false
+
+        if self.clear.contains(&(coord.0 - 1, coord.1 - 1)) {
+            return CacheResult::Clear;
+        }
+
+        self.cached.insert((coord.0 - 1, coord.1 - 1));
+        CacheResult::Ok
     }
 
     fn reveal_mines(&mut self) {
         for coord in &self.mines_at {
-            let index = self.labels.get(coord).unwrap();
-            self.board_string.replace_range(*index..(*index + 1), "*");
+            let &index = self.labels.get(coord).unwrap();
+            self.board_string.replace_range(index..(index + 1), "*");
         }
     }
 
@@ -165,17 +175,13 @@ impl Board {
         self.flagged
     }
 
-    pub fn all_mines_found(&self) -> bool {
-        self.area - self.clear.len() == self.mines_at.len()
-    }
-    
     pub fn toggle_flag_at(&mut self, at: Coord) -> bool {
 
-        if let Some(index) = self.labels.get(&at) {
+        if let Some(&index) = self.labels.get(&at) {
             
             // Do nothing if the parcel has been explored.
             if !self.clear.contains(&at) {
-                if self.board_string.chars().nth(*index).unwrap() == '>' {
+                if self.board_string.chars().nth(index).unwrap() == '>' {
                     self.flagged -= 1;
                     self.update_label(at, '.');
                 }
@@ -194,20 +200,28 @@ impl Board {
     pub fn explore(&mut self) -> ExploreResult {
 
         // Get the next cell to explore.
-        let Some(&(row, col)) = self.cached.iter().next()
-        else { return ExploreResult::EmptyCache };
-        self.cached.remove(&(row, col));
+        // In passing, check if all mines have been found.
 
-        // If false, the cell has been explored -- nothing to do.
-        if !self.clear.insert((row, col)) {
-            return ExploreResult::Clear;
+        if self.cached.is_empty() {
+
+            if self.area - self.clear.len() == self.mines_at.len() {
+                return ExploreResult::ClearBoard;
+            }
+            else {
+                return ExploreResult::EmptyCache;
+            }
         }
+
+        let &(row, col) = self.cached.iter().next().unwrap();
+        self.cached.remove(&(row, col));
 
         // The cell is mined.
         if self.mines_at.contains(&(row, col)) {
             self.reveal_mines();
             return ExploreResult::Mined;
         }
+
+        self.clear.insert((row, col));
 
         // Possible coordinates of each neighbor.
         let above = row.checked_sub(1);
@@ -246,14 +260,13 @@ impl Board {
 
         if mined > 0 {
             self.update_label((row, col), mined.to_string().chars().next().unwrap());
-            return ExploreResult::MinedNeighbourhood;
         }
-        
-        // 3. Neighbourhood is not mined:
-        // Add unexplored neighbours to the cache.
-        self.update_label((row, col), ' ');
-        self.cached.extend(unexplored);
-        
+        else {
+            // Cache unexplored neighbors.
+            self.update_label((row, col), ' ');
+            self.cached.extend(unexplored);
+        }
+
         ExploreResult::Ok
     }
 }

@@ -102,7 +102,7 @@ fn main() {
                                 0
                             ];
 
-                            // Default number of mines.
+                            // Default number of mines. // CHECK THIS
                             args[2] = rng.gen_range(1..(args[0] * args[1]));
 
                             match parse_arguments(arg_line, &mut args, false) {
@@ -144,6 +144,7 @@ fn main() {
                                 rng.gen_range(1..=board.get_cols()), // Column
                             ];
 
+                            // Parse arguments.
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected \
@@ -158,35 +159,42 @@ fn main() {
                             }
                             
                             // Try to add the specified coordinate to the unexplored cache.
-                            if !board.cache((args[0], args[1])) {
-                                println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).\n",
-                                         x = args[0], y = args[1]);
-                                continue 'main;
-                            }
-                            
-                            // board.explore() explores the board greedily, that is, it keeps
-                            // exploring clear neighbourhoods until it runs into one that is mined.
+                            match board.cache((args[0], args[1])) {
+                                CacheResult::InvalidCoordinate => {
+                                    println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).\n",
+                                             x = args[0], y = args[1]);
+                                    continue 'main;
+                                },
+                                CacheResult::Clear => {
+                                    println!("{prefix} '{cmd}': the cell at ({x}, {y}) is clear.\n",
+                                             x = args[0], y = args[1]);
+                                    continue 'main;
+                                },
+                                CacheResult::Ok => {
 
-                            loop {
-                                match board.explore() {
-                                    ExploreResult::EmptyCache | ExploreResult::Clear => break,
-                                    ExploreResult::Mined => {
-                                        println!("{prefix} The cell is mined!\n\n\
-                                                  {board}\n\
-                                                  Game over!\n");
-                                        // TODO: ask the user if they want to start a new game.
-                                        break 'main;
-                                    },
-                                    _ => {}
+                                    loop {
+
+                                        // Explores the board greedily, that is, it keeps exploring clear
+                                        // neighborhoods until it runs into one that is mined.
+
+                                        match board.explore() {
+                                            ExploreResult::Ok => {}, // Added for readability.
+                                            ExploreResult::ClearBoard => {
+                                                println!("{prefix} Congratulations! All mines have been found!\n\n\
+                                                          {board}\n");
+                                                break 'main;
+                                            },
+                                            ExploreResult::EmptyCache => break,
+                                            ExploreResult::Mined => {
+                                                println!("{prefix} The cell is mined!\n\n\
+                                                          {board}\n\
+                                                          Game over!\n");
+                                                // TODO: ask the user if they want to start a new game.
+                                                break 'main;
+                                            },
+                                        }
+                                    }
                                 }
-                            }
-                                
-                            // The user wins when the number of unexplored cells equals the
-                            // number of mines.
-
-                            if board.all_mines_found() {
-                                println!("{prefix} Congratulations! All mines have been found!\n");
-                                break 'main;
                             }
                         },
 
@@ -259,45 +267,3 @@ fn main() {
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use rand::prelude::*;
-
-//     #[test]
-//     fn test_explore() {
-
-//         // Create a new Board and mine it.
-//         let mut rng = rand::thread_rng();
-//         let rows: usize = rng.gen_range(1..=10);
-//         let cols: usize = rng.gen_range(1..=10);
-//         let mine_count: usize = rng.gen_range(1..(rows * cols));
-
-//         let board_result = Board::new(rows, cols, mine_count);
-//         let mut board = board_result
-//             .unwrap_or_else(|_| panic!("Error while creating a \
-//                                         new Board ({rows}, {cols}, \
-//                                         {mine_count}).")
-//         );
-
-//         println!("Created board with ({rows}, {cols}, {mine_count}).");
-        
-//         // Pick a coordinate at random.
-//         let index = rng.gen_range(0..(rows * cols));
-//         let coord = (index/board.cols, index % board.cols);
-
-//         println!("Exploring cell at ({}, {})", coord.0 + 1, coord.1 + 1);
-//         board.add_to_unexplored(coord);
-
-//         loop {
-//             match board.explore() {
-//                 ExploreResult::Clear => { println!("Clear"); },
-//                 ExploreResult::Mined => { println!("Mine found at ({}, {})", coord.0, coord.1); }
-//                 ExploreResult::EmptyCache => { println!("Empty cache."); break; }
-//                 ExploreResult::MinedNeighbourhood => { println!("MinedNeighbourhood"); }
-//             }
-//         }
-//         println!("{}", board);
-//     }
-// }

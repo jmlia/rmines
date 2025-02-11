@@ -26,9 +26,8 @@ values for them will be chosen at random.
 - Ask the user if they would like to start a new game after the current one is over.
 - Give the user the possibility of saving their progress and resume the game
   later.
-- Write many more tests!
-- Refactor the `explore` function to make it more efficient.
 - Make the user interface more functional (perhaps through third-patry crates
   like `rustyline`).
 - Make sure that every new board is exactly populated with `<mine_count>` mines
    (see the comments in `Board::new()` for details).
+- Write tests!
