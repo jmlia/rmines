@@ -95,16 +95,7 @@ fn main() {
                     match cmd {
                         'n' => { // Start a new game.
 
-                            // Default arguments (make a board no larger than the current one).
-                            let mut args: [usize; 3] = [
-                                rng.gen_range(1..=board.get_rows()), // Number of rows
-                                rng.gen_range(1..=board.get_cols()), // Number of columns
-                                0
-                            ];
-
-                            // Default number of mines. // CHECK THIS
-                            args[2] = rng.gen_range(1..(args[0] * args[1]));
-
+                            let mut args: [usize; 3] = [ 0, 0, 0 ];
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected three \
@@ -116,6 +107,13 @@ fn main() {
                                     continue;
                                 },
                                 _ => {}
+                            }
+
+                            // Fill in any missing arguments with defaults.
+                            for arg in &mut args {
+                                if *arg == 0 {
+                                    *arg = rng.gen_range(1..=10);
+                                }
                             }
 
                             // Try to create a new board.
