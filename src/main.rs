@@ -1,6 +1,6 @@
 //
 
-use rand::{Rng, distributions::{Distribution, Uniform}};
+use rand::Rng;
 use std::{io::{self, Write}, time::SystemTime};
 
 mod game;
@@ -23,7 +23,7 @@ fn parse_arguments<'a>(line: &'a str, args: &mut [usize], mandatory: bool) -> Pa
             return ParseResult::TooManyArguments };
 
         match slice.parse::<usize>() {
-            Ok(n) if n > 0 => *arg = n - 1,
+            Ok(n) if n > 0 => *arg = n,
             // If `slice' is empty but the argument is mandatory, report the case as an error.
             Err(error) if *error.kind() == std::num::IntErrorKind::Empty => {
                 if mandatory {
@@ -108,7 +108,7 @@ fn main() {
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected three \
-                                              at most: `[rows]', `[columns]', and `[mine count]'.");
+                                              at most: `[rows]', `[columns]', and `[mine count]'.\n");
                                     continue;
                                 }
                                 ParseResult::InvalidArgument(slice) => {
@@ -122,16 +122,16 @@ fn main() {
                             match Board::new(args[0], args[1], args[2]) {
                                 Ok(new_board) => {
                                     println!("{prefix} Starting a new game. The new board has {rows} rows, \
-                                              {cols} columns, and (approximately) {count} mines.",
+                                              {cols} columns, and (approximately) {count} mines.\n",
                                              rows = args[0], cols = args[1], count = args[2]);
                                     board = new_board;
                                     start_time = SystemTime::now();
                                 },
                                 Err(BoardError::NullArea) => {
-                                    println!("{prefix} '{cmd}': Cannot create a board with zero rows or columns!");
+                                    println!("{prefix} '{cmd}': Cannot create a board with zero rows or columns!\n");
                                 },
                                 Err(BoardError::TooManyMines) => {
-                                    println!("{prefix} '{cmd}': Too many mines for such a small board!");
+                                    println!("{prefix} '{cmd}': Too many mines for such a small board!\n");
                                 }
                             }
                         },
@@ -147,19 +147,19 @@ fn main() {
                             match parse_arguments(arg_line, &mut args, false) {
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected \
-                                              two at most: `[row]', `[colum]'.");
+                                              two at most: `[row]', `[colum]'.\n");
                                     continue;
                                 },
                                 ParseResult::InvalidArgument(slice) => {
-                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.");
+                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.\n");
                                     continue;
                                 },
                                 _ => {}
                             }
                             
                             // Try to add the specified coordinate to the unexplored cache.
-                            if !board.add_to_unexplored((args[0] - 1, args[1] - 1)) {
-                                println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).",
+                            if !board.cache((args[0], args[1])) {
+                                println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).\n",
                                          x = args[0], y = args[1]);
                                 continue 'main;
                             }
@@ -169,9 +169,9 @@ fn main() {
 
                             loop {
                                 match board.explore() {
-                                    ExploreResult::EmptyCache => break,
+                                    ExploreResult::EmptyCache | ExploreResult::Clear => break,
                                     ExploreResult::Mined => {
-                                        println!("{prefix} You found a mine!\n\n\
+                                        println!("{prefix} The cell is mined!\n\n\
                                                   {board}\n\
                                                   Game over!\n");
                                         // TODO: ask the user if they want to start a new game.
@@ -184,8 +184,8 @@ fn main() {
                             // The user wins when the number of unexplored cells equals the
                             // number of mines.
 
-                            if board.all_mines_located() {
-                                println!("{prefix} Congratulations! All mines have been located!\n");
+                            if board.all_mines_found() {
+                                println!("{prefix} Congratulations! All mines have been found!\n");
                                 break 'main;
                             }
                         },
@@ -196,22 +196,22 @@ fn main() {
 
                             match parse_arguments(arg_line, &mut args, true) {
                                 ParseResult::MissingArgument => {
-                                    println!("{prefix} '{cmd}': too few arguments passed in.");
+                                    println!("{prefix} '{cmd}': too few arguments passed in.\n");
                                     continue;
                                 },
                                 ParseResult::TooManyArguments => {
                                     println!("{prefix} '{cmd}': too many arguments, expected \
-                                              two at most: `[row]', `[colum]'.");
+                                              two at most: `[row]', `[colum]'.\n");
                                     continue;
                                 },
                                 ParseResult::InvalidArgument(slice) => {
-                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.");
+                                    println!("{prefix} '{cmd}': '{slice}' is not a valid coordinate.\n");
                                     continue;
                                 },
                                 _ => {}
                             }
 
-                            if !board.toggle_flag_at((args[0] - 1, args[1] - 1)) {
+                            if !board.toggle_flag_at((args[0], args[1])) {
                                 println!("{prefix} '{cmd}': ");
                                 continue 'main;
                             }

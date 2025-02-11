@@ -12,6 +12,7 @@ pub enum BoardError {
 }
 
 pub enum ExploreResult {
+    Ok,
     EmptyCache,
     Mined,
     MinedNeighbourhood,
@@ -27,14 +28,19 @@ pub struct Board {
     // Number of cells marked as mined.
     flagged: usize,
 
-    // Sets containing the coordinates of the cells containing
-    // mines, those pending to be explored and those already explored.
-    unexplored: HashSet<Coord>,
-    explored: HashSet<Coord>,
+    // Cells to be explored in the next call to Board::explore().
+    cached: HashSet<Coord>,
+
+    // Cells already explored (and clear).
+    clear: HashSet<Coord>,
+
+    // Location of each coordinate on the board.
     mines_at: HashSet<Coord>,
 
-    // Data related to printing the board to stdout.
+    // The string representation of the board.
     board_string: String,
+
+    // The label of each coordinate in the `board_string' array.
     labels: HashMap<Coord, usize>,
 }
 
@@ -108,8 +114,8 @@ impl Board {
             cols,
             area: board_area,
             flagged: 0,
-            unexplored: HashSet::with_capacity(board_area - mines_at.len()),
-            explored: HashSet::with_capacity(board_area - mines_at.len()),
+            cached: HashSet::with_capacity(board_area - mines_at.len()),
+            clear: HashSet::with_capacity(board_area - mines_at.len()),
             mines_at,
             labels: board_string
                 .match_indices('.')
@@ -120,23 +126,23 @@ impl Board {
         })
     }
 
-    pub fn add_to_unexplored(&mut self, coord: Coord) -> bool {
+    pub fn cache(&mut self, coord: Coord) -> bool {
 
-        if coord.0 < self.rows && coord.1 < self.cols {
-            self.unexplored.insert(coord);
+        if coord.0 < self.rows + 1 && coord.1 < self.cols + 1 {
+            self.cached.insert((coord.0 - 1, coord.1 - 1));
             return true;
         }
         false
     }
 
-    pub fn reveal_mines(&mut self) {
+    fn reveal_mines(&mut self) {
         for coord in &self.mines_at {
             let index = self.labels.get(coord).unwrap();
             self.board_string.replace_range(*index..(*index + 1), "*");
         }
     }
 
-    pub fn update_label(&mut self, at: Coord, label: char) {
+    fn update_label(&mut self, at: Coord, label: char) {
         let index: usize = *self.labels.get(&at).unwrap();
         let mut buffer: [u8; 2] = [0; 2];
         self.board_string.replace_range(index..(index + 1),
@@ -159,8 +165,8 @@ impl Board {
         self.flagged
     }
 
-    pub fn all_mines_located(&self) -> bool {
-        self.area - self.explored.len() == self.mines_at.len()
+    pub fn all_mines_found(&self) -> bool {
+        self.area - self.clear.len() == self.mines_at.len()
     }
     
     pub fn toggle_flag_at(&mut self, at: Coord) -> bool {
@@ -168,7 +174,7 @@ impl Board {
         if let Some(index) = self.labels.get(&at) {
             
             // Do nothing if the parcel has been explored.
-            if !self.explored.contains(&at) {
+            if !self.clear.contains(&at) {
                 if self.board_string.chars().nth(*index).unwrap() == '>' {
                     self.flagged -= 1;
                     self.update_label(at, '.');
@@ -187,58 +193,67 @@ impl Board {
 
     pub fn explore(&mut self) -> ExploreResult {
 
-        if self.unexplored.is_empty() {
-            return ExploreResult::EmptyCache;
+        // Get the next cell to explore.
+        let Some(&(row, col)) = self.cached.iter().next()
+        else { return ExploreResult::EmptyCache };
+        self.cached.remove(&(row, col));
+
+        // If false, the cell has been explored -- nothing to do.
+        if !self.clear.insert((row, col)) {
+            return ExploreResult::Clear;
         }
 
-        // Remove the coordinate from the `unexplored' cache...
-        let (row, col) = *self.unexplored.iter().next().unwrap();
-        self.unexplored.remove(&(row, col));
-
-        // ...and insert it into the `explored' set.
-        if !self.explored.insert((row, col)) {
-            return ExploreResult::EmptyCache;
-        }
-
-        // 1. The cell is mined!
+        // The cell is mined.
         if self.mines_at.contains(&(row, col)) {
             self.reveal_mines();
             return ExploreResult::Mined;
         }
 
-        // 2. Check if the neighbourhood is mined.
+        // Possible coordinates of each neighbor.
         let above = row.checked_sub(1);
-        let below = if row < self.rows - 1 { Some(row + 1) } else { None };
-        
+        let below = if row + 1 < self.rows { Some(row + 1) } else { None };
         let left = col.checked_sub(1);
-        let right = if col < self.cols - 1 { Some(col + 1) } else { None };
-        
-        let mut neighbours: Vec<Coord> = Vec::with_capacity(8);
-        let mut mine_count: usize = 0;
-        
-        for adjacent_coord in [
-            (above,     left), (above, Some(col)), (above,     right),
-            (Some(row), left),                     (Some(row), right),
-            (below,     left), (below, Some(col)), (below,     right) ]  {
-            if let (Some(neighbour_row), Some(neighbour_col)) = adjacent_coord {
-                if !self.explored.contains(&(neighbour_row, neighbour_col))
-                    && !self.unexplored.contains(&(neighbour_row, neighbour_col)) {
-                        neighbours.push((neighbour_row, neighbour_col));
-                        mine_count += self.mines_at.contains(&(neighbour_row, neighbour_col)) as usize;
-                    }
+        let right = if col + 1 < self.cols { Some(col + 1) } else { None };
+
+        // Neighbors not yet explored and candidate for exploration.
+        let mut unexplored: Vec<Coord> = Vec::with_capacity(8);
+
+        // Number of mines found in the neighborhood.
+        let mut mined: usize = 0;
+
+        // Immutable variable defined to improve readability.
+        let neighborhood =
+            [ (above,      left), (above, Some(col)), (above,     right),
+               (Some(row), left),                     (Some(row), right),
+               (below,     left), (below, Some(col)), (below,     right) ];
+
+        for neighbor in neighborhood {
+
+            // Filter neighbors with valid coordinates.
+            if let (Some(ng_row), Some(ng_col)) = neighbor {
+
+                if self.mines_at.contains(&(ng_row, ng_col)) {
+                    mined += 1; // Mined neighbor.
+                }
+                else if mined == 0 && !self.clear.contains(&(ng_row, ng_col)) {
+                    // If no mines have been found in the neighborhood yet, and the current cell has
+                    // not been explored, then make it a candidate for exploration in a subsequent
+                    // call to this function.
+                    unexplored.push((ng_row, ng_col));
+                }
             }
         }
 
-        if mine_count > 0 {
-            self.update_label((row, col), mine_count.to_string().chars().next().unwrap());
+        if mined > 0 {
+            self.update_label((row, col), mined.to_string().chars().next().unwrap());
             return ExploreResult::MinedNeighbourhood;
         }
         
         // 3. Neighbourhood is not mined:
         // Add unexplored neighbours to the cache.
         self.update_label((row, col), ' ');
-        self.unexplored.extend(neighbours);
+        self.cached.extend(unexplored);
         
-        ExploreResult::Clear
+        ExploreResult::Ok
     }
 }
