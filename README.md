@@ -4,7 +4,7 @@
 
 ## Dependencies
 
-This program only uses the `rand` crate.
+This program only requires the `rand` crate.
 
 ## How to play
 

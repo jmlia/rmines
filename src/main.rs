@@ -177,8 +177,9 @@ fn main() {
 
                                         match board.explore() {
                                             ExploreResult::Ok => {}, // Added for readability.
-                                            ExploreResult::ClearBoard => {
-                                                println!("{prefix} Congratulations! All mines have been found!\n\n\
+                                            ExploreResult::BoardClear => {
+                                                println!("{prefix} Congratulations! All mines have \
+                                                          been found!\n\n\
                                                           {board}\n");
                                                 break 'main;
                                             },

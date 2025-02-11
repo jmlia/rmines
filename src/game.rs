@@ -15,7 +15,7 @@ pub enum ExploreResult {
     Ok,
     EmptyCache,
     Mined,
-    ClearBoard,
+    BoardClear,
 }
 
 pub enum CacheResult {
@@ -112,7 +112,7 @@ impl Board {
             .sample_iter(&mut rng)
             .take(mine_count)
             .map(|index| (index/cols, index%cols))
-            .collect::<HashSet<Coord>>();
+            .collect();
 
         Ok(Board {
             rows,
@@ -153,7 +153,7 @@ impl Board {
     }
 
     fn update_label(&mut self, at: Coord, label: char) {
-        let index: usize = *self.labels.get(&at).unwrap();
+        let &index = self.labels.get(&at).unwrap();
         let mut buffer: [u8; 2] = [0; 2];
         self.board_string.replace_range(index..(index + 1),
                                         label.encode_utf8(&mut buffer));
@@ -205,7 +205,7 @@ impl Board {
         if self.cached.is_empty() {
 
             if self.area - self.clear.len() == self.mines_at.len() {
-                return ExploreResult::ClearBoard;
+                return ExploreResult::BoardClear;
             }
             else {
                 return ExploreResult::EmptyCache;
