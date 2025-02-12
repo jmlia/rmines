@@ -28,6 +28,6 @@ values for them will be chosen at random.
   later.
 - Make the user interface more functional (perhaps through third-patry crates
   like `rustyline`).
-- Make sure that every new board is exactly populated with `<mine_count>` mines
+- Make sure that every new board is populated with exactly `<mine_count>` mines
    (see the comments in `Board::new()` for details).
 - Write tests!

@@ -24,6 +24,12 @@ pub enum CacheResult {
     Clear,
 }
 
+pub enum CellLabel {
+    Clear,
+    Flag,
+    MinedNeighbors(usize)
+}
+
 pub struct Board {
     // Dimensions of the board.
     rows: usize,
@@ -31,7 +37,7 @@ pub struct Board {
     area: usize,
 
     // Number of cells marked as mined.
-    flagged: usize,
+    flagged: HashSet<Coord>,
 
     // Cells to be explored in the next call to Board::explore().
     cached: HashSet<Coord>,
@@ -75,11 +81,10 @@ impl Board {
         let mut board_string: String =
             String::with_capacity(((col_label_width + 2) * cols + (row_label_width + 2)) * rows);
 
-        // Header
-        board_string.push_str(
-            format!("{:width$}|", 1, width = (row_label_width + 1) + col_label_width)
-                .as_str()
-        );
+        // Header including column labels and separators.
+        board_string.push_str(format!("{:width$}|", 1,
+                                      width = (row_label_width + 1) +
+                                      col_label_width).as_str());
 
         for col in 2..(cols + 1) {
             board_string.push_str(format!("{:col_label_width$}|", col).as_str());
@@ -87,14 +92,11 @@ impl Board {
 
         board_string.push('\n');
 
-        // One line for each row.
+        // Row and cell labels.
         for row in 0..rows {
             board_string.push_str(format!("{:row_label_width$}|", row + 1).as_str());
-            board_string.push_str(
-                format!("{:>width$}", '.', width = col_label_width + 1)
-                    .repeat(cols)
-                    .as_str(),
-            );
+            board_string.push_str(format!("{:>width$}", '.', width = col_label_width + 1)
+                                  .repeat(cols).as_str());
             board_string.push('\n');
         }
 
@@ -118,7 +120,7 @@ impl Board {
             rows,
             cols,
             area: board_area,
-            flagged: 0,
+            flagged: HashSet::with_capacity(mines_at.len()),
             cached: HashSet::with_capacity(board_area - mines_at.len()),
             clear: HashSet::with_capacity(board_area - mines_at.len()),
             mines_at,
@@ -131,17 +133,21 @@ impl Board {
         })
     }
 
-    pub fn cache(&mut self, coord: Coord) -> CacheResult {
+    pub fn cache(&mut self, mut coord: Coord) -> CacheResult {
 
-        if !(coord.0 < self.rows + 1 && coord.1 < self.cols + 1) {
+        // Coordinates as specified by the user are offset by 1.
+        coord.0 -= 1;
+        coord.1 -= 1;
+
+        if !(coord.0 < self.rows && coord.1 < self.cols) {
             return CacheResult::InvalidCoordinate;
         }
 
-        if self.clear.contains(&(coord.0 - 1, coord.1 - 1)) {
+        if self.clear.contains(&(coord.0, coord.1)) {
             return CacheResult::Clear;
         }
 
-        self.cached.insert((coord.0 - 1, coord.1 - 1));
+        self.cached.insert((coord.0, coord.1));
         CacheResult::Ok
     }
 
@@ -152,11 +158,52 @@ impl Board {
         }
     }
 
-    fn update_label(&mut self, at: Coord, label: char) {
-        let &index = self.labels.get(&at).unwrap();
-        let mut buffer: [u8; 2] = [0; 2];
-        self.board_string.replace_range(index..(index + 1),
-                                        label.encode_utf8(&mut buffer));
+    pub fn update_label(&mut self, mut at: Coord, label: CellLabel, from_ui: bool) -> bool {
+
+        // Coordinates passed in from UI calls are offset by (1, 1).
+        if from_ui {
+            at.0 -= 1;
+            at.1 -= 1;
+        }
+
+        // Buffer to replace a single char in `board_string'.
+        if let Some(&index) = self.labels.get(&at) {
+   
+            let mut buffer: [u8; 2] = [0; 2];
+   
+            match label {
+                CellLabel::Clear => {
+                    self.flagged.remove(&at);
+                    self.board_string.replace_range(index..(index + 1),
+                                                    ' '.encode_utf8(&mut buffer));
+                },
+                CellLabel::MinedNeighbors(mine_count) => {
+                    self.flagged.remove(&at);
+                    self.board_string.replace_range(index..(index + 1),
+                                                    mine_count.to_string().chars()
+                                                    .next().unwrap().encode_utf8(&mut buffer));
+                },
+                CellLabel::Flag => {
+                    // Do nothing if the parcel has already been explored.
+                    // Otherwise, exchange '>' for '.' and vice-versa.
+
+                    if self.flagged.remove(&at) {
+                        self.board_string.replace_range(index..(index + 1),
+                                                        '.'.encode_utf8(&mut buffer));
+                    }
+                    else if self.flagged.len() < self.mines_at.len() {
+                        self.flagged.insert(at);
+                        self.board_string.replace_range(index..(index + 1),
+                                                        '>'.encode_utf8(&mut buffer));
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        false
+
     }
 
     pub fn get_rows(&self) -> usize {
@@ -172,29 +219,7 @@ impl Board {
     }
 
     pub fn get_flagged_count(&self) -> usize {
-        self.flagged
-    }
-
-    pub fn toggle_flag_at(&mut self, at: Coord) -> bool {
-
-        if let Some(&index) = self.labels.get(&at) {
-            
-            // Do nothing if the parcel has been explored.
-            if !self.clear.contains(&at) {
-                if self.board_string.chars().nth(index).unwrap() == '>' {
-                    self.flagged -= 1;
-                    self.update_label(at, '.');
-                }
-                else {
-                    self.flagged += 1;
-                    self.update_label(at, '>');
-                }
-            }
-
-            return true;
-        }
-
-        false
+        self.flagged.len()
     }
 
     pub fn explore(&mut self) -> ExploreResult {
@@ -215,7 +240,7 @@ impl Board {
         let &(row, col) = self.cached.iter().next().unwrap();
         self.cached.remove(&(row, col));
 
-        // The cell is mined.
+        // If the cell is mined, return.
         if self.mines_at.contains(&(row, col)) {
             self.reveal_mines();
             return ExploreResult::Mined;
@@ -259,11 +284,11 @@ impl Board {
         }
 
         if mined > 0 {
-            self.update_label((row, col), mined.to_string().chars().next().unwrap());
+            self.update_label((row, col), CellLabel::MinedNeighbors(mined), false);
         }
         else {
             // Cache unexplored neighbors.
-            self.update_label((row, col), ' ');
+            self.update_label((row, col), CellLabel::Clear, false);
             self.cached.extend(unexplored);
         }
 

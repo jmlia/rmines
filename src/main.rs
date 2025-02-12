@@ -69,7 +69,7 @@ fn main() {
 
         // Print the board and other information related to the current game.
         print!("{}\n\
-                Located {flagged} of {mine_count} mines\n\
+                Flagged {flagged} cells of {mine_count} mined\n\
                 Total playing time: {playing_time}\n\n\
                 {prefix} ",
                board, flagged = board.get_flagged_count(),
@@ -110,11 +110,9 @@ fn main() {
                             }
 
                             // Fill in any missing arguments with defaults.
-                            for arg in &mut args {
-                                if *arg == 0 {
-                                    *arg = rng.gen_range(1..=10);
-                                }
-                            }
+                            if args[0] == 0 { args[0] = rng.gen_range(1..=10); }
+                            if args[1] == 0 { args[1] = rng.gen_range(1..=10); }
+                            if args[2] == 0 { args[2] = rng.gen_range(1..=(args[0] * args[1])); }
 
                             // Try to create a new board.
                             match Board::new(args[0], args[1], args[2]) {
@@ -202,13 +200,8 @@ fn main() {
                             let mut args: [usize; 2] = [ 0; 2 ];
 
                             match parse_arguments(arg_line, &mut args, true) {
-                                ParseResult::MissingArgument => {
-                                    println!("{prefix} '{cmd}': too few arguments passed in.\n");
-                                    continue;
-                                },
-                                ParseResult::TooManyArguments => {
-                                    println!("{prefix} '{cmd}': too many arguments, expected \
-                                              two at most: `[row]', `[colum]'.\n");
+                                ParseResult::MissingArgument | ParseResult::TooManyArguments => {
+                                    println!("{prefix} '{cmd}': invalid number of arguments (expected two).\n");
                                     continue;
                                 },
                                 ParseResult::InvalidArgument(slice) => {
@@ -218,8 +211,9 @@ fn main() {
                                 _ => {}
                             }
 
-                            if !board.toggle_flag_at((args[0], args[1])) {
-                                println!("{prefix} '{cmd}': ");
+                            if !board.update_label((args[0], args[1]), CellLabel::Flag, true) {
+                                println!("{prefix} '{cmd}': invalid cell coordinate ({x}, {y}).\n",
+                                         x = args[0], y = args[1]);
                                 continue 'main;
                             }
                         },
