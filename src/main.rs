@@ -170,8 +170,8 @@ fn main() {
 
                                     loop {
 
-                                        // Explores the board greedily, that is, it keeps exploring clear
-                                        // neighborhoods until it runs into one that is mined.
+                                        // Explores the chosen cell and its neighborhood 
+                                        // until a mined neighbor is found.
 
                                         match board.explore() {
                                             ExploreResult::Ok => {}, // Added for readability.
